@@ -541,44 +541,43 @@ const TEMPLATES = {
   },
 
   // ===== BASEBALL CAP =====
+  // Just the crown (no brim), using a real elliptical arc (SVG "A" command)
+  // for the top so it's a proper smooth dome instead of two curves meeting
+  // in a point. Panel seams converge at the button.
   cap: {
     svg: `
       <!--
-        Crown (the dome part), point by point:
-          M 150 410            bottom-left of the dome
-          C ...260 145          curve up the left side to the top-center
-          C ...370 410          curve back down the right side
-          Z                     straight line across the bottom back to start
-          (the flat bottom edge sits just under the brim's top edge below)
-        Front panel seam: a curved line down the middle of the crown, purely
-        decorative (like the collar/cuff detail lines on the shirt templates).
-        Button: small circle at the very top of the crown.
-        Brim (the bill), point by point:
-          M 110 402             left corner, tucked under the crown
-          Q 260 385 410 402     top edge of the brim (slight upward curve)
-          Q 405 460 260 468     right side curving down to the bottom-center tip
-          Q 115 460 110 402     left side curving back up to the start
-          Z
-        Tip: widen the "410"/"110" x-values to make the brim stick out further;
-        increase the "468" y-value to make the brim droop more.
+        Crown (the dome part):
+          M 150 390            bottom-left corner
+          L 150 250             straight up to where the dome curve starts
+          A 110 120 0 0 1 370 250   elliptical arc up and over the top
+                                     (rx=110, ry=120 controls how tall/round
+                                     the dome looks — increase ry for a
+                                     taller dome, decrease for a flatter one)
+          L 370 390             straight down the right side
+          Z                     flat line across the bottom back to start
+        Center seam + two diagonal panel seams, all converging near the top
+        button — the "6-panel" look from a typical structured cap.
+        Eyelets: two small circles, one per side panel.
       -->
-      <path class="garment-fill" d="
-        M 110 402
-        Q 260 385 410 402
-        Q 405 460 260 468
-        Q 115 460 110 402
-        Z"
-        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
       <path id="shirt-body" class="garment-fill" d="
-        M 150 410
-        C 140 260 175 150 260 145
-        C 345 150 380 260 370 410
+        M 150 390
+        L 150 250
+        A 110 120 0 0 1 370 250
+        L 370 390
         Z"
-        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
-      <path d="M 260 150 C 250 230 250 330 260 408" fill="none" stroke="#20232a" stroke-width="3" stroke-dasharray="4 4" opacity="0.5"/>
-      <circle cx="260" cy="148" r="8" fill="#ffffff" stroke="#20232a" stroke-width="3"/>
+        fill="#ffffff" stroke="#20232a" stroke-width="3" stroke-linejoin="round"/>
+      <!-- center seam -->
+      <path d="M 260 132 C 255 220 255 320 260 388" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.55"/>
+      <!-- diagonal panel seams -->
+      <path d="M 260 134 C 220 178 180 280 172 385" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.5"/>
+      <path d="M 260 134 C 300 178 340 280 348 385" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.5"/>
+      <!-- eyelets -->
+      <circle cx="205" cy="245" r="5" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.65"/>
+      <circle cx="315" cy="245" r="5" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.65"/>
+      <circle cx="260" cy="130" r="6" fill="#ffffff" stroke="#20232a" stroke-width="2.5"/>
     `,
-    dropzone: { left:'34%', top:'32%', width:'32%', height:'30%' }
+    dropzone: { left:'34%', top:'32%', width:'32%', height:'40%' }
   }
 };
 
