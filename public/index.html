@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>T-Shirt Designer</title>
+<style>
+  :root{
+    --bg:#f4f5f7;
+    --panel:#ffffff;
+    --ink:#20232a;
+    --muted:#7a7f8a;
+    --accent:#4f6df5;
+    --danger:#e5484d;
+    --border:#e2e4e9;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    padding:14px 20px;
+    background:var(--panel);
+    border-bottom:1px solid var(--border);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  header h1{
+    font-size:16px;
+    margin:0;
+    font-weight:600;
+  }
+  header .hint{
+    font-size:12px;
+    color:var(--muted);
+  }
+  .layout{
+    flex:1;
+    display:flex;
+    overflow:hidden;
+  }
+  .palette{
+    width:220px;
+    background:var(--panel);
+    border-right:1px solid var(--border);
+    padding:16px;
+    overflow-y:auto;
+  }
+  .palette h2{
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--muted);
+    margin:0 0 12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .palette h2 .refresh-btn{
+    text-transform:none;
+    letter-spacing:0;
+    font-size:11px;
+    color:var(--accent);
+    cursor:pointer;
+    border:none;
+    background:none;
+    padding:0;
+  }
+  .palette-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .sticker{
+    aspect-ratio:1;
+    border:1px solid var(--border);
+    border-radius:10px;
+    background:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:30px;
+    cursor:grab;
+    user-select:none;
+    transition:box-shadow .15s, transform .15s;
+  }
+  .sticker:hover{
+    box-shadow:0 2px 8px rgba(0,0,0,.08);
+    transform:translateY(-1px);
+  }
+  .sticker:active{cursor:grabbing;}
+  .sticker img{
+    max-width:100%;
+    max-height:100%;
+    pointer-events:none;
+  }
+  .upload-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    width:100%;
+    padding:10px;
+    border:1px dashed var(--border);
+    border-radius:10px;
+    background:#fafafc;
+    color:var(--muted);
+    font-size:13px;
+    cursor:pointer;
+    margin-bottom:12px;
+  }
+  .upload-btn:hover{
+    background:#f0f1f4;
+    color:var(--ink);
+  }
+  .upload-btn.uploading{
+    opacity:.6;
+    cursor:default;
+  }
+  .sticker.custom{
+    position:relative;
+  }
+  .sticker .remove-sticker{
+    position:absolute;
+    top:-6px;
+    right:-6px;
+    width:16px;
+    height:16px;
+    border-radius:50%;
+    background:var(--danger);
+    color:#fff;
+    border:2px solid #fff;
+    font-size:10px;
+    line-height:1;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+  .sticker.custom:hover .remove-sticker{display:flex;}
+  .stage-wrap{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    background:
+      linear-gradient(90deg, rgba(0,0,0,.03) 1px, transparent 1px) 0 0/24px 24px,
+      linear-gradient(rgba(0,0,0,.03) 1px, transparent 1px) 0 0/24px 24px,
+      var(--bg);
+  }
+  #stage{
+    position:relative;
+    width:520px;
+    height:600px;
+  }
+  #shirt-svg{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+  }
+  #dropzone{
+    position:absolute;
+    left:31%;
+    top:30%;
+    width:38%;
+    height:48%;
+    border:2px dashed transparent;
+    border-radius:6px;
+  }
+  #dropzone.drag-over{
+    border-color:var(--accent);
+    background:rgba(79,109,245,.06);
+  }
+  .placed{
+    position:absolute;
+    touch-action:none;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:48px;
+    user-select:none;
+    cursor:move;
+    line-height:1;
+  }
+  .placed img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    pointer-events:none;
+    -webkit-user-drag:none;
+  }
+  .placed.selected{
+    outline:2px solid var(--accent);
+    outline-offset:4px;
+    border-radius:6px;
+  }
+  .placed .handle{
+    position:absolute;
+    width:14px;
+    height:14px;
+    background:var(--accent);
+    border:2px solid #fff;
+    border-radius:50%;
+    display:none;
+  }
+  .placed.selected .handle{display:block;}
+  .placed .handle.resize{
+    right:-7px;
+    bottom:-7px;
+    cursor:nwse-resize;
+  }
+  .placed .handle.rotate{
+    left:50%;
+    top:-24px;
+    transform:translateX(-50%);
+    cursor:grab;
+    background:#fff;
+    border:2px solid var(--accent);
+  }
+  .placed .delete-btn{
+    position:absolute;
+    top:-24px;
+    right:-24px;
+    width:20px;
+    height:20px;
+    border-radius:50%;
+    background:var(--danger);
+    color:#fff;
+    border:2px solid #fff;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    line-height:1;
+    cursor:pointer;
+  }
+  .placed.selected .delete-btn{display:flex;}
+  .toolbar{
+    position:absolute;
+    top:16px;
+    right:16px;
+    display:flex;
+    gap:8px;
+  }
+  .toolbar button{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:8px 12px;
+    font-size:13px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .toolbar button:hover{background:#f0f1f4;}
+  .color-row{
+    display:flex;
+    gap:8px;
+    margin-top:16px;
+    flex-wrap:wrap;
+  }
+  .color-swatch{
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    border:2px solid var(--border);
+    cursor:pointer;
+  }
+  .color-swatch.active{
+    border-color:var(--accent);
+    box-shadow:0 0 0 2px rgba(79,109,245,.25);
+  }
+  .template-select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--border);
+    border-radius:8px;
+    background:#fff;
+    color:var(--ink);
+    font-size:13px;
+    cursor:pointer;
+  }
+  .empty-hint{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    color:var(--muted);
+    font-size:13px;
+    pointer-events:none;
+    padding:0 40px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>T-Shirt Designer</h1>
+  <span class="hint">Drag an image from the left onto the shirt. Drag the corner to resize, the top handle to rotate. Uploaded images are shared with everyone.</span>
+</header>
+
+<div class="layout">
+  <div class="palette">
+    <h2>Product</h2>
+    <select class="template-select" id="templateSelect">
+      <option value="tshirt">T-Shirt</option>
+      <option value="longsleeve">Long Sleeve Shirt</option>
+      <option value="sweater">Long Sleeve Sweater</option>
+      <option value="tote">Tote / Canvas Bag</option>
+    </select>
+
+    <h2 style="margin-top:22px;">
+      Shared Images
+      <button class="refresh-btn" id="refreshBtn" title="Check for new images from other visitors">Refresh</button>
+    </h2>
+    <label class="upload-btn" id="uploadLabel" for="fileInput">＋ Upload image(s)</label>
+    <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
+    <div class="palette-grid" id="uploadedGrid"></div>
+
+    <h2 style="margin-top:22px;">Shirt Color</h2>
+    <div class="color-row" id="colorRow"></div>
+  </div>
+
+  <div class="stage-wrap">
+    <div class="toolbar">
+      <button id="clearBtn">Clear All</button>
+    </div>
+    <div id="stage">
+      <svg id="shirt-svg" viewBox="0 0 520 600" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div id="dropzone"></div>
+      <div class="empty-hint" id="emptyHint">Your design area</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COLORS = ["#ffffff","#d3d3d3","#808080","#20232a","#e5484d","#4f6df5","#f5c94f","#2fb670"];
+
+// ---- Product templates ----
+// Each template has:
+//   svg      - the markup drawn inside the 520x600 viewBox (top-left is 0,0)
+//   dropzone - the % area (relative to the whole stage) where images can be dropped
+const TEMPLATES = {
+
+  // ===== T-SHIRT (short sleeve) =====
+  tshirt: {
+    svg: `
+      <path id="shirt-body" d="
+        M 180 20
+        L 220 20
+        C 235 45 285 45 300 20
+        L 340 20
+        L 400 65
+        L 460 130
+        L 400 175
+        L 370 145
+        L 370 560
+        C 370 575 355 585 340 585
+        L 180 585
+        C 165 585 150 575 150 560
+        L 150 145
+        L 120 175
+        L 60 130
+        L 120 65
+        Z"
+        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M 220 20 C 235 45 285 45 300 20" fill="none" stroke="#20232a" stroke-width="3" stroke-dasharray="4 4" opacity="0.5"/>
+    `,
+    dropzone: { left:'31%', top:'30%', width:'38%', height:'48%' }
+  },
+
+  // ===== LONG SLEEVE SHIRT =====
+  longsleeve: {
+    svg: `
+      <path id="shirt-body" d="
+        M 180 20
+        L 220 20
+        C 235 45 285 45 300 20
+        L 340 20
+        L 395 55
+        L 445 480
+        L 385 495
+        L 365 160
+        L 365 560
+        C 365 575 350 585 335 585
+        L 185 585
+        C 170 585 155 575 155 560
+        L 155 160
+        L 135 495
+        L 75 480
+        L 125 55
+        Z"
+        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M 220 20 C 235 45 285 45 300 20" fill="none" stroke="#20232a" stroke-width="3" stroke-dasharray="4 4" opacity="0.5"/>
+    `,
+    dropzone: { left:'29%', top:'27%', width:'42%', height:'50%' }
+  },
+
+  // ===== LONG SLEEVE SWEATER =====
+  sweater: {
+    svg: `
+      <path id="shirt-body" d="
+        M 175 25
+        L 225 25
+        C 240 55 280 55 295 25
+        L 345 25
+        L 400 60
+        L 450 480
+        L 380 500
+        L 360 170
+        L 360 555
+        C 360 572 345 585 328 585
+        L 192 585
+        C 175 585 160 572 160 555
+        L 160 170
+        L 140 500
+        L 70 480
+        L 120 60
+        Z"
+        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M 225 25 C 240 55 280 55 295 25" fill="none" stroke="#20232a" stroke-width="3" opacity="0.5"/>
+      <line x1="380" y1="495" x2="445" y2="475" stroke="#20232a" stroke-width="3" opacity="0.4"/>
+      <line x1="140" y1="495" x2="75" y2="475" stroke="#20232a" stroke-width="3" opacity="0.4"/>
+      <line x1="160" y1="565" x2="360" y2="565" stroke="#20232a" stroke-width="3" opacity="0.4"/>
+    `,
+    dropzone: { left:'28%', top:'28%', width:'44%', height:'50%' }
+  },
+
+  // ===== TOTE / CANVAS BAG =====
+  tote: {
+    svg: `
+      <path id="shirt-body" d="
+        M 85 280
+        L 435 280
+        L 435 555
+        C 435 573 418 585 395 585
+        L 125 585
+        C 102 585 85 573 85 555
+        Z"
+        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
+      <rect x="175" y="272" width="45" height="16" rx="3" fill="#ffffff" stroke="#20232a" stroke-width="3"/>
+      <rect x="300" y="272" width="45" height="16" rx="3" fill="#ffffff" stroke="#20232a" stroke-width="3"/>
+      <path d="M 182 278 C 182 160 185 40 218 40 C 251 40 254 160 254 278"
+        fill="none" stroke="#20232a" stroke-width="13" stroke-linecap="round"/>
+      <path d="M 266 278 C 266 160 269 40 302 40 C 335 40 338 160 338 278"
+        fill="none" stroke="#20232a" stroke-width="13" stroke-linecap="round"/>
+    `,
+    dropzone: { left:'24%', top:'48%', width:'52%', height:'34%' }
+  }
+};
+
+let currentColor = COLORS[0];
+
+function applyTemplate(key){
+  const t = TEMPLATES[key];
+  document.getElementById('shirt-svg').innerHTML = t.svg;
+  document.getElementById('shirt-body').setAttribute('fill', currentColor);
+  const dz = t.dropzone;
+  dropzone.style.left = dz.left;
+  dropzone.style.top = dz.top;
+  dropzone.style.width = dz.width;
+  dropzone.style.height = dz.height;
+}
+
+document.getElementById('templateSelect').addEventListener('change', e=>{
+  applyTemplate(e.target.value);
+});
+
+// ---- Shared images (stored on the server, visible to every visitor) ----
+const uploadedGrid = document.getElementById('uploadedGrid');
+const fileInput = document.getElementById('fileInput');
+const uploadLabel = document.getElementById('uploadLabel');
+const refreshBtn = document.getElementById('refreshBtn');
+
+// Shrinks an image client-side before we upload it, to keep bandwidth and
+// server storage reasonable.
+function resizeImage(dataUrl, maxDim){
+  return new Promise(resolve=>{
+    const img = new Image();
+    img.onload = ()=>{
+      let { width, height } = img;
+      if(width > maxDim || height > maxDim){
+        if(width > height){ height = Math.round(height * maxDim / width); width = maxDim; }
+        else { width = Math.round(width * maxDim / height); height = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => resolve(blob), 'image/png');
+    };
+    img.onerror = ()=> resolve(null);
+    img.src = dataUrl;
+  });
+}
+
+async function fetchSharedImages(){
+  try{
+    const res = await fetch('/api/images');
+    if(!res.ok) throw new Error('Failed to load images');
+    return await res.json();
+  }catch(e){
+    console.warn('Could not load shared images:', e);
+    return [];
+  }
+}
+
+function renderGallery(images){
+  uploadedGrid.innerHTML = '';
+  images.forEach(img => addUploadedSticker(img));
+}
+
+async function refreshGallery(){
+  const images = await fetchSharedImages();
+  renderGallery(images);
+}
+
+refreshBtn.addEventListener('click', refreshGallery);
+
+// Poll periodically so images uploaded by other visitors show up automatically.
+setInterval(refreshGallery, 15000);
+
+fileInput.addEventListener('change', async ()=>{
+  const files = Array.from(fileInput.files || []);
+  uploadLabel.classList.add('uploading');
+  uploadLabel.textContent = 'Uploading…';
+
+  for(const file of files){
+    if(!file.type.startsWith('image/')) continue;
+
+    const dataUrl = await new Promise(resolve=>{
+      const reader = new FileReader();
+      reader.onload = ()=> resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    const blob = await resizeImage(dataUrl, 800);
+    if(!blob) continue;
+
+    const formData = new FormData();
+    formData.append('image', blob, (file.name || 'upload').replace(/\.[^.]+$/, '') + '.png');
+
+    try{
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if(!res.ok){
+        alert(data.error || 'Upload failed');
+        continue;
+      }
+      addUploadedSticker(data);
+    }catch(e){
+      console.error('Upload failed:', e);
+      alert('Upload failed — check your connection and try again.');
+    }
+  }
+
+  uploadLabel.classList.remove('uploading');
+  uploadLabel.textContent = '＋ Upload image(s)';
+  fileInput.value = '';
+});
+
+function addUploadedSticker(image){
+  // image: { id, url, filename, uploadedAt }
+  if(uploadedGrid.querySelector(`[data-id="${image.id}"]`)) return; // avoid duplicates on refresh
+
+  const el = document.createElement('div');
+  el.className = 'sticker custom';
+  el.draggable = true;
+  el.dataset.id = image.id;
+
+  const img = document.createElement('img');
+  img.src = image.url;
+  el.appendChild(img);
+
+  const remove = document.createElement('div');
+  remove.className = 'remove-sticker';
+  remove.textContent = '✕';
+  remove.title = 'Remove for everyone';
+  remove.addEventListener('click', async ev=>{
+    ev.stopPropagation();
+    el.remove();
+    try{
+      await fetch(`/api/images/${image.id}`, { method: 'DELETE' });
+    }catch(e){
+      console.warn('Could not delete image on server:', e);
+    }
+  });
+  el.appendChild(remove);
+
+  el.addEventListener('dragstart', e=>{
+    e.dataTransfer.setData('text/plain', JSON.stringify({type:'image', value: image.url}));
+    e.dataTransfer.effectAllowed = 'copy';
+  });
+
+  uploadedGrid.appendChild(el);
+}
+
+// Load whatever's already been shared by other visitors.
+refreshGallery();
+
+const colorRow = document.getElementById('colorRow');
+COLORS.forEach((c,i)=>{
+  const sw = document.createElement('div');
+  sw.className = 'color-swatch' + (i===0?' active':'');
+  sw.style.background = c;
+  sw.addEventListener('click', ()=>{
+    currentColor = c;
+    document.getElementById('shirt-body').setAttribute('fill', c);
+    document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active');
+  });
+  colorRow.appendChild(sw);
+});
+
+const stage = document.getElementById('stage');
+const dropzone = document.getElementById('dropzone');
+const emptyHint = document.getElementById('emptyHint');
+let selected = null;
+let zTop = 1;
+
+applyTemplate('tshirt');
+
+function updateEmptyHint(){
+  const has = stage.querySelectorAll('.placed').length > 0;
+  emptyHint.style.display = has ? 'none' : 'flex';
+}
+
+dropzone.addEventListener('dragover', e=>{
+  e.preventDefault();
+  dropzone.classList.add('drag-over');
+});
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  const raw = e.dataTransfer.getData('text/plain');
+  if(!raw) return;
+  let data;
+  try{ data = JSON.parse(raw); } catch(err){ data = {type:'emoji', value: raw}; }
+  const stageRect = stage.getBoundingClientRect();
+  const x = e.clientX - stageRect.left;
+  const y = e.clientY - stageRect.top;
+  createPlaced(data, x, y);
+});
+
+function createPlaced(data, x, y){
+  const size = 70;
+  const el = document.createElement('div');
+  el.className = 'placed';
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+  el.style.left = (x - size/2) + 'px';
+  el.style.top = (y - size/2) + 'px';
+  el.style.zIndex = ++zTop;
+  el.dataset.rotation = 0;
+
+  if(data.type === 'image'){
+    const img = document.createElement('img');
+    img.src = data.value;
+    img.draggable = false;
+    el.appendChild(img);
+  } else {
+    el.textContent = data.value;
+  }
+
+  const del = document.createElement('div');
+  del.className = 'delete-btn';
+  del.textContent = '✕';
+  del.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    el.remove();
+    updateEmptyHint();
+  });
+  el.appendChild(del);
+
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'handle resize';
+  el.appendChild(resizeHandle);
+
+  const rotateHandle = document.createElement('div');
+  rotateHandle.className = 'handle rotate';
+  el.appendChild(rotateHandle);
+
+  el.addEventListener('pointerdown', e=>{
+    if(e.target === resizeHandle || e.target === rotateHandle || e.target === del) return;
+    selectPlaced(el);
+    startDrag(e, el);
+  });
+  resizeHandle.addEventListener('pointerdown', e=>{
+    e.stopPropagation();
+    selectPlaced(el);
+    startResize(e, el);
+  });
+  rotateHandle.addEventListener('pointerdown', e=>{
+    e.stopPropagation();
+    selectPlaced(el);
+    startRotate(e, el);
+  });
+
+  stage.appendChild(el);
+  selectPlaced(el);
+  updateEmptyHint();
+}
+
+function selectPlaced(el){
+  document.querySelectorAll('.placed').forEach(p=>p.classList.remove('selected'));
+  el.classList.add('selected');
+  el.style.zIndex = ++zTop;
+  selected = el;
+}
+
+stage.addEventListener('pointerdown', e=>{
+  if(e.target === stage || e.target.id === 'shirt-svg'){
+    document.querySelectorAll('.placed').forEach(p=>p.classList.remove('selected'));
+    selected = null;
+  }
+});
+
+function applyTransform(el){
+  const rot = el.dataset.rotation || 0;
+  el.style.transform = `rotate(${rot}deg)`;
+  const fontSize = Math.max(parseFloat(el.style.width) * 0.68, 10);
+  el.style.fontSize = fontSize + 'px';
+}
+
+function startDrag(e, el){
+  const startX = e.clientX, startY = e.clientY;
+  const startLeft = parseFloat(el.style.left);
+  const startTop = parseFloat(el.style.top);
+  el.setPointerCapture(e.pointerId);
+
+  function move(ev){
+    const dx = ev.clientX - startX;
+    const dy = ev.clientY - startY;
+    el.style.left = (startLeft + dx) + 'px';
+    el.style.top = (startTop + dy) + 'px';
+  }
+  function up(ev){
+    el.releasePointerCapture(e.pointerId);
+    el.removeEventListener('pointermove', move);
+    el.removeEventListener('pointerup', up);
+  }
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+}
+
+function startResize(e, el){
+  const startX = e.clientX;
+  const startWidth = parseFloat(el.style.width);
+  el.setPointerCapture(e.pointerId);
+
+  function move(ev){
+    const dx = ev.clientX - startX;
+    const newSize = Math.max(24, Math.min(300, startWidth + dx));
+    el.style.width = newSize + 'px';
+    el.style.height = newSize + 'px';
+    applyTransform(el);
+  }
+  function up(ev){
+    el.releasePointerCapture(e.pointerId);
+    el.removeEventListener('pointermove', move);
+    el.removeEventListener('pointerup', up);
+  }
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+}
+
+function startRotate(e, el){
+  el.setPointerCapture(e.pointerId);
+
+  function angleFromCenter(clientX, clientY){
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    return Math.atan2(clientY - cy, clientX - cx) * 180/Math.PI + 90;
+  }
+
+  function move(ev){
+    const angle = angleFromCenter(ev.clientX, ev.clientY);
+    el.dataset.rotation = angle;
+    applyTransform(el);
+  }
+  function up(ev){
+    el.releasePointerCapture(e.pointerId);
+    el.removeEventListener('pointermove', move);
+    el.removeEventListener('pointerup', up);
+  }
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+}
+
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  document.querySelectorAll('.placed').forEach(p=>p.remove());
+  selected = null;
+  updateEmptyHint();
+});
+
+updateEmptyHint();
+</script>
+</body>
+</html>
