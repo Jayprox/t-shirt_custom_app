@@ -123,8 +123,9 @@
     font-size:30px;
     cursor:grab;
     user-select:none;
-    touch-action:none;
+    touch-action:pan-y;
     -webkit-user-drag:none;
+    -webkit-touch-callout:none;
     transition:box-shadow .15s, transform .15s;
   }
   .sticker:hover{
@@ -397,6 +398,7 @@
       <option value="longsleeve">Long Sleeve Shirt</option>
       <option value="sweater">Long Sleeve Sweater</option>
       <option value="tote">Tote / Canvas Bag</option>
+      <option value="cap">Baseball Cap</option>
     </select>
 
     <h2 style="margin-top:22px;">
@@ -435,7 +437,7 @@ const TEMPLATES = {
   // ===== T-SHIRT (short sleeve) =====
   tshirt: {
     svg: `
-      <path id="shirt-body" d="
+      <path id="shirt-body" class="garment-fill" d="
         M 180 20
         L 220 20
         C 235 45 285 45 300 20
@@ -462,7 +464,7 @@ const TEMPLATES = {
   // ===== LONG SLEEVE SHIRT =====
   longsleeve: {
     svg: `
-      <path id="shirt-body" d="
+      <path id="shirt-body" class="garment-fill" d="
         M 180 20
         L 220 20
         C 235 45 285 45 300 20
@@ -489,7 +491,7 @@ const TEMPLATES = {
   // ===== LONG SLEEVE SWEATER =====
   sweater: {
     svg: `
-      <path id="shirt-body" d="
+      <path id="shirt-body" class="garment-fill" d="
         M 175 25
         L 225 25
         C 240 55 280 55 295 25
@@ -519,7 +521,7 @@ const TEMPLATES = {
   // ===== TOTE / CANVAS BAG =====
   tote: {
     svg: `
-      <path id="shirt-body" d="
+      <path id="shirt-body" class="garment-fill" d="
         M 85 280
         L 435 280
         L 435 555
@@ -536,6 +538,47 @@ const TEMPLATES = {
         fill="none" stroke="#20232a" stroke-width="13" stroke-linecap="round"/>
     `,
     dropzone: { left:'24%', top:'48%', width:'52%', height:'34%' }
+  },
+
+  // ===== BASEBALL CAP =====
+  cap: {
+    svg: `
+      <!--
+        Crown (the dome part), point by point:
+          M 150 410            bottom-left of the dome
+          C ...260 145          curve up the left side to the top-center
+          C ...370 410          curve back down the right side
+          Z                     straight line across the bottom back to start
+          (the flat bottom edge sits just under the brim's top edge below)
+        Front panel seam: a curved line down the middle of the crown, purely
+        decorative (like the collar/cuff detail lines on the shirt templates).
+        Button: small circle at the very top of the crown.
+        Brim (the bill), point by point:
+          M 110 402             left corner, tucked under the crown
+          Q 260 385 410 402     top edge of the brim (slight upward curve)
+          Q 405 460 260 468     right side curving down to the bottom-center tip
+          Q 115 460 110 402     left side curving back up to the start
+          Z
+        Tip: widen the "410"/"110" x-values to make the brim stick out further;
+        increase the "468" y-value to make the brim droop more.
+      -->
+      <path class="garment-fill" d="
+        M 110 402
+        Q 260 385 410 402
+        Q 405 460 260 468
+        Q 115 460 110 402
+        Z"
+        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
+      <path id="shirt-body" class="garment-fill" d="
+        M 150 410
+        C 140 260 175 150 260 145
+        C 345 150 380 260 370 410
+        Z"
+        fill="#ffffff" stroke="#20232a" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M 260 150 C 250 230 250 330 260 408" fill="none" stroke="#20232a" stroke-width="3" stroke-dasharray="4 4" opacity="0.5"/>
+      <circle cx="260" cy="148" r="8" fill="#ffffff" stroke="#20232a" stroke-width="3"/>
+    `,
+    dropzone: { left:'34%', top:'32%', width:'32%', height:'30%' }
   }
 };
 
@@ -544,7 +587,7 @@ let currentColor = COLORS[0];
 function applyTemplate(key){
   const t = TEMPLATES[key];
   document.getElementById('shirt-svg').innerHTML = t.svg;
-  document.getElementById('shirt-body').setAttribute('fill', currentColor);
+  document.querySelectorAll('.garment-fill').forEach(el => el.setAttribute('fill', currentColor));
   const dz = t.dropzone;
   dropzone.style.left = dz.left;
   dropzone.style.top = dz.top;
@@ -685,11 +728,48 @@ function addUploadedSticker(image){
 
 // ---- Pointer-based "drag from palette onto the stage" ----
 // Works with mouse, touch, and pen since Pointer Events unify all three.
+//
+// On touch, a plain pointerdown->drag would hijack every attempt to scroll
+// the palette list (since a scroll gesture also starts with a touch move on
+// a sticker). So for touch input we require a brief press-and-hold before
+// starting the drag; if the finger moves more than a few pixels first, we
+// treat it as a scroll and back off instead of placing anything.
+const TOUCH_HOLD_MS = 160;
+const TOUCH_MOVE_CANCEL_PX = 10;
+
 function makeStickerDraggable(el, excludeEl, getData){
   el.addEventListener('pointerdown', e=>{
     if(excludeEl && (e.target === excludeEl || excludeEl.contains(e.target))) return;
-    e.preventDefault();
-    beginPointerPlace(e, el, getData());
+
+    if(e.pointerType === 'touch'){
+      const startX = e.clientX, startY = e.clientY;
+      let timer;
+
+      const onEarlyMove = ev=>{
+        if(Math.hypot(ev.clientX - startX, ev.clientY - startY) > TOUCH_MOVE_CANCEL_PX){
+          cleanup(); // looks like a scroll — let the browser handle it natively
+        }
+      };
+      const cleanup = ()=>{
+        clearTimeout(timer);
+        el.removeEventListener('pointermove', onEarlyMove);
+        el.removeEventListener('pointerup', cleanup);
+        el.removeEventListener('pointercancel', cleanup);
+      };
+
+      el.addEventListener('pointermove', onEarlyMove);
+      el.addEventListener('pointerup', cleanup);
+      el.addEventListener('pointercancel', cleanup);
+
+      timer = setTimeout(()=>{
+        cleanup();
+        beginPointerPlace(e, el, getData());
+      }, TOUCH_HOLD_MS);
+    } else {
+      // Mouse/pen: no scroll conflict, start the drag immediately.
+      e.preventDefault();
+      beginPointerPlace(e, el, getData());
+    }
   });
 }
 
@@ -722,6 +802,9 @@ function beginPointerPlace(startEvent, sourceEl, data){
   }
 
   function onMove(ev){
+    // Once a drag has actually started, stop the browser from also trying to
+    // scroll the page for the same touch gesture.
+    if(ev.cancelable) ev.preventDefault();
     positionGhost(ev.clientX, ev.clientY);
     dropzone.classList.toggle('drag-over', isOverDropzone(ev.clientX, ev.clientY));
   }
@@ -749,7 +832,7 @@ function beginPointerPlace(startEvent, sourceEl, data){
     dropzone.classList.remove('drag-over');
   }
 
-  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointermove', onMove, { passive: false });
   document.addEventListener('pointerup', onUp);
   document.addEventListener('pointercancel', onCancel);
 }
@@ -764,7 +847,7 @@ COLORS.forEach((c,i)=>{
   sw.style.background = c;
   sw.addEventListener('click', ()=>{
     currentColor = c;
-    document.getElementById('shirt-body').setAttribute('fill', c);
+    document.querySelectorAll('.garment-fill').forEach(el => el.setAttribute('fill', c));
     document.querySelectorAll('.color-swatch').forEach(s=>s.classList.remove('active'));
     sw.classList.add('active');
   });
