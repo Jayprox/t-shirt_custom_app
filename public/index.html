@@ -236,6 +236,15 @@
     height:100%;
     pointer-events:none;
   }
+  #shirt-image{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    pointer-events:none;
+    -webkit-user-drag:none;
+  }
   #dropzone{
     position:absolute;
     left:31%;
@@ -398,7 +407,10 @@
       <option value="longsleeve">Long Sleeve Shirt</option>
       <option value="sweater">Long Sleeve Sweater</option>
       <option value="tote">Tote / Canvas Bag</option>
-      <option value="cap">Baseball Cap</option>
+      <option value="capfront">Baseball Cap - Front</option>
+      <option value="capback">Baseball Cap - Back</option>
+      <option value="capleft">Baseball Cap - Side (Left)</option>
+      <option value="capright">Baseball Cap - Side (Right)</option>
     </select>
 
     <h2 style="margin-top:22px;">
@@ -409,7 +421,7 @@
     <input type="file" id="fileInput" accept="image/*" multiple style="display:none;">
     <div class="palette-grid" id="uploadedGrid"></div>
 
-    <h2 style="margin-top:22px;">Shirt Color</h2>
+    <h2 style="margin-top:22px;" id="colorSectionHeading">Shirt Color</h2>
     <div class="color-row" id="colorRow"></div>
   </div>
 
@@ -419,6 +431,7 @@
     </div>
     <div id="stage">
       <svg id="shirt-svg" viewBox="0 0 520 600" xmlns="http://www.w3.org/2000/svg"></svg>
+      <img id="shirt-image" alt="" style="display:none;">
       <div id="dropzone"></div>
       <div class="empty-hint" id="emptyHint">Your design area</div>
     </div>
@@ -540,53 +553,79 @@ const TEMPLATES = {
     dropzone: { left:'24%', top:'48%', width:'52%', height:'34%' }
   },
 
-  // ===== BASEBALL CAP =====
-  // Just the crown (no brim), using a real elliptical arc (SVG "A" command)
-  // for the top so it's a proper smooth dome instead of two curves meeting
-  // in a point. Panel seams converge at the button.
-  cap: {
-    svg: `
-      <!--
-        Crown (the dome part):
-          M 150 390            bottom-left corner
-          L 150 250             straight up to where the dome curve starts
-          A 110 120 0 0 1 370 250   elliptical arc up and over the top
-                                     (rx=110, ry=120 controls how tall/round
-                                     the dome looks — increase ry for a
-                                     taller dome, decrease for a flatter one)
-          L 370 390             straight down the right side
-          Z                     flat line across the bottom back to start
-        Center seam + two diagonal panel seams, all converging near the top
-        button — the "6-panel" look from a typical structured cap.
-        Eyelets: two small circles, one per side panel.
-      -->
-      <path id="shirt-body" class="garment-fill" d="
-        M 150 390
-        L 150 250
-        A 110 120 0 0 1 370 250
-        L 370 390
-        Z"
-        fill="#ffffff" stroke="#20232a" stroke-width="3" stroke-linejoin="round"/>
-      <!-- center seam -->
-      <path d="M 260 132 C 255 220 255 320 260 388" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.55"/>
-      <!-- diagonal panel seams -->
-      <path d="M 260 134 C 220 178 180 280 172 385" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.5"/>
-      <path d="M 260 134 C 300 178 340 280 348 385" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.5"/>
-      <!-- eyelets -->
-      <circle cx="205" cy="245" r="5" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.65"/>
-      <circle cx="315" cy="245" r="5" fill="none" stroke="#20232a" stroke-width="1.5" opacity="0.65"/>
-      <circle cx="260" cy="130" r="6" fill="#ffffff" stroke="#20232a" stroke-width="2.5"/>
-    `,
-    dropzone: { left:'34%', top:'32%', width:'32%', height:'40%' }
+  // ===== BASEBALL CAP TEMPLATES (image-based) =====
+  // These use your actual reference images as the base layer instead of a
+  // hand-drawn SVG. Each entry has:
+  //   type: 'image'  — tells applyTemplate() to show #shirt-image instead
+  //                     of drawing into #shirt-svg
+  //   src            — path to the image, served from /public/templates
+  //   aspect         — the image's native width/height, so the stage is
+  //                     resized to match exactly (no letterboxing), which
+  //                     keeps the dropzone's percentages aligned correctly
+  //   dropzone       — same as other templates: % position on the stage
+  // Since these are flat raster images (not SVG), the "Shirt Color" swatches
+  // don't recolor them — applyTemplate() hides that section for image
+  // templates automatically.
+  capfront: {
+    type: 'image',
+    src: '/templates/front-cap.png',
+    aspect: 500 / 348,
+    dropzone: { left:'30%', top:'10%', width:'40%', height:'42%' }
+  },
+  capback: {
+    type: 'image',
+    src: '/templates/back-cap.png',
+    aspect: 450 / 336,
+    dropzone: { left:'32%', top:'35%', width:'36%', height:'40%' }
+  },
+  capleft: {
+    type: 'image',
+    src: '/templates/side-left-cap.png',
+    aspect: 568 / 318,
+    dropzone: { left:'56%', top:'22%', width:'26%', height:'46%' }
+  },
+  capright: {
+    type: 'image',
+    src: '/templates/side-right-cap.png',
+    aspect: 564 / 344,
+    dropzone: { left:'18%', top:'22%', width:'26%', height:'46%' }
   }
 };
 
 let currentColor = COLORS[0];
 
+function setColorSectionVisible(visible){
+  const heading = document.getElementById('colorSectionHeading');
+  const row = document.getElementById('colorRow');
+  const display = visible ? '' : 'none';
+  if(heading) heading.style.display = display;
+  if(row) row.style.display = display;
+}
+
 function applyTemplate(key){
   const t = TEMPLATES[key];
-  document.getElementById('shirt-svg').innerHTML = t.svg;
-  document.querySelectorAll('.garment-fill').forEach(el => el.setAttribute('fill', currentColor));
+  const svgEl = document.getElementById('shirt-svg');
+  const imgEl = document.getElementById('shirt-image');
+
+  if(t.type === 'image'){
+    // Image-based template (e.g. the cap views): show the real photo/sketch
+    // as the base layer instead of drawing an SVG outline.
+    svgEl.style.display = 'none';
+    svgEl.innerHTML = '';
+    imgEl.src = t.src;
+    imgEl.style.display = 'block';
+    stage.style.aspectRatio = String(t.aspect);
+    setColorSectionVisible(false); // can't recolor a flat raster image
+  } else {
+    imgEl.style.display = 'none';
+    imgEl.removeAttribute('src');
+    svgEl.style.display = 'block';
+    svgEl.innerHTML = t.svg;
+    document.querySelectorAll('.garment-fill').forEach(el => el.setAttribute('fill', currentColor));
+    stage.style.aspectRatio = '520 / 600';
+    setColorSectionVisible(true);
+  }
+
   const dz = t.dropzone;
   dropzone.style.left = dz.left;
   dropzone.style.top = dz.top;
